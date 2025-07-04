@@ -13,19 +13,16 @@ def is_short_link(user_url, token):
     api_url = "https://api.vk.com/method/utils.getLinkStats"
     params = {
         "access_token": token,
-        "v": "5.131",
+        "v": "5.199",
         "key": short_link_key,
         "interval": "forever"
     }
-    try:
-        response = requests.get(api_url, params=params, timeout=20)
-        response.raise_for_status()
-        link_stats_response = response.json()
-        if link_stats_response.get("error"):
-            return False
-        return True
-    except (requests.exceptions.RequestException, ValueError):
-        return False
+    response = requests.get(api_url, params=params, timeout=20)
+    response.raise_for_status()
+    link_stats_response = response.json()
+    if "error" in link_stats_response:
+        raise requests.exceptions.HTTPError(f"Ошибка от VK API: {link_stats_response['error'].get('error_msg', 'Неизвестная ошибка')}")
+    return True
 
 
 def shorten_link(token, user_url):
@@ -39,9 +36,8 @@ def shorten_link(token, user_url):
     response = requests.get(api_url, params=params, timeout=20)
     response.raise_for_status()
     shortened_link_response = response.json()
-    error = shortened_link_response.get("error")
-    if error:
-        raise RuntimeError(f"Ошибка от VK API: {error.get('error_msg', 'Неизвестная ошибка')}")
+    if "error" in shortened_link_response:
+        raise requests.exceptions.HTTPError(f"Ошибка от VK API: {shortened_link_response['error'].get('error_msg', 'Неизвестная ошибка')}")
     return shortened_link_response["response"]["short_url"]
 
 
@@ -50,16 +46,15 @@ def count_clicks(token, short_url):
     api_url = "https://api.vk.com/method/utils.getLinkStats"
     params = {
         "access_token": token,
-        "v": "5.131",
+        "v": "5.199",
         "key": short_link_key,
         "interval": "forever"
     }
     response = requests.get(api_url, params=params, timeout=20)
     response.raise_for_status()
     click_stats_response = response.json()
-    error = click_stats_response.get("error")
-    if error:
-        raise RuntimeError(f"Ошибка от VK API: {error.get('error_msg', 'Ошибка получения статистики')}")
+    if "error" in click_stats_response:
+        raise requests.exceptions.HTTPError(f"Ошибка от VK API: {click_stats_response['error'].get('error_msg', 'Ошибка получения статистики')}")
     stats = click_stats_response.get("response", {}).get("stats", [])
     return sum(item.get("clicks", 0) for item in stats)
 
@@ -71,22 +66,22 @@ def main():
         print("Ошибка: переменная VK_TOKEN не найдена.")
         return
     user_url = input("Вставь ссылку: ").strip()
-    if not urlparse(user_url).scheme:
-        user_url = "https://" + user_url
     try:
         if is_short_link(user_url, vk_token):
             clicks = count_clicks(vk_token, user_url)
+            print("Количество переходов по ссылке:", clicks)
         else:
             user_url = shorten_link(vk_token, user_url)
             print("Сокращённая ссылка:", user_url)
-            clicks = count_clicks(vk_token, user_url)
-        print("Количество переходов по ссылке:", clicks)
+            print("Количество переходов по ссылке: 0")
     except requests.exceptions.HTTPError as http_error:
         print("HTTP ошибка:", http_error)
     except requests.exceptions.ConnectionError:
         print("Ошибка соединения: проверь URL или подключение к интернету.")
     except requests.exceptions.Timeout:
         print("Превышено время ожидания ответа от сервера.")
+    except ValueError as value_error:
+        print("Ошибка парсинга ответа API:", value_error)
     except Exception as general_error:
         print("Неизвестная ошибка:", general_error)
 
