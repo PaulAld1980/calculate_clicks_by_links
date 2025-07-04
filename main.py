@@ -20,9 +20,7 @@ def is_short_link(user_url, token):
     response = requests.get(api_url, params=params, timeout=20)
     response.raise_for_status()
     link_stats_response = response.json()
-    if "error" in link_stats_response:
-        raise requests.exceptions.HTTPError(f"Ошибка от VK API: {link_stats_response['error'].get('error_msg', 'Неизвестная ошибка')}")
-    return True
+    return not "error" in link_stats_response
 
 
 def shorten_link(token, user_url):
@@ -74,12 +72,12 @@ def main():
             user_url = shorten_link(vk_token, user_url)
             print("Сокращённая ссылка:", user_url)
             print("Количество переходов по ссылке: 0")
-    except requests.exceptions.HTTPError as http_error:
-        print("HTTP ошибка:", http_error)
     except requests.exceptions.ConnectionError:
         print("Ошибка соединения: проверь URL или подключение к интернету.")
     except requests.exceptions.Timeout:
         print("Превышено время ожидания ответа от сервера.")
+    except requests.exceptions.HTTPError as http_error:
+        print("HTTP ошибка:", http_error)
     except ValueError as value_error:
         print("Ошибка парсинга ответа API:", value_error)
     except Exception as general_error:
